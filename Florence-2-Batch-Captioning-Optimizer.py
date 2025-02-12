@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 import traceback
 import time
+from functools import lru_cache
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -54,6 +55,30 @@ class ModelManager:
         if cls._instance is None:
             cls._instance = super(ModelManager, cls).__new__(cls)
         return cls._instance
+
+
+
+    @classmethod
+    @lru_cache(maxsize=2)  # ✅ Cache jusqu'à 2 modèles en mémoire
+    def load_model(cls, model_name: str):
+        """Load and cache the model to avoid redundant loading"""
+        logger.info(f"Loading model: {model_name}")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model_id = cls.MODELS.get(model_name)
+
+        if model_id is None:
+            raise ValueError(f"Unknown model name: {model_name}")
+
+        try:
+            model = (AutoModelForCausalLM
+                     .from_pretrained(model_id, trust_remote_code=True)
+                     .to(device)
+                     .eval())
+            processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+            return model, processor
+        except Exception as e:
+            logger.error(f"Error loading model: {str(e)}")
+            raise RuntimeError(f"Failed to load model {model_name}: {str(e)}")
     
     @classmethod
     def get_model_and_processor(cls, model_name: str) -> Tuple[AutoModelForCausalLM, AutoProcessor]:
@@ -380,18 +405,33 @@ class BatchCaptioningUI:
 
                 paths_list = image_paths.strip().split("\n")
                 saved_count = 0
-                
+
                 for idx, row in df.iterrows():
                     if row["Selected"] and row["Caption"].strip():
                         try:
-                            caption_path = f"{paths_list[idx]}.txt"
+                            # Déterminer les deux formats possibles de fichier texte
+                            base_path = Path(paths_list[idx])
+                            txt_path1 = base_path.with_suffix(".txt")  # Ex: ohwxmm (1).txt
+                            txt_path2 = Path(f"{base_path}.txt")       # Ex: ohwxmm (1).png.txt
+
+                            # Vérifier quel fichier existe déjà
+                            if txt_path1.exists():
+                                caption_path = txt_path1
+                            elif txt_path2.exists():
+                                caption_path = txt_path2
+                            else:
+                                caption_path = txt_path1  # Par défaut, on utilise le format standard .txt
+
+                            # Sauvegarde de la légende
                             with open(caption_path, "w", encoding="utf-8") as f:
                                 f.write(row["Caption"].strip())
                             saved_count += 1
+
                         except Exception as e:
                             logger.error(f"Error saving caption for {paths_list[idx]}: {str(e)}")
 
                 return f"✅ Saved {saved_count} captions successfully!"
+
 
             save_btn.click(
                 fn=save_captions,
