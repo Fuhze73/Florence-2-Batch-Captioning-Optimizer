@@ -1,0 +1,9 @@
+torch
+transformers
+gradio
+pandas
+pillow
+numpy
+autopep8
+pathlib
+typing-extensions
