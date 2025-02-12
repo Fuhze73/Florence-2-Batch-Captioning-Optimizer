@@ -349,7 +349,7 @@ class BatchCaptioningUI:
                     for valid_idx, caption in zip(valid_indices, captions):
                         df.at[valid_idx, "Caption"] = caption
                         df.at[valid_idx, "Status"] = "✅ Success"
-                        df.at[valid_idx, "Selected"] = true
+                        df.at[valid_idx, "Selected"] = True
                         
                 except Exception as e:
                     logger.error(f"Caption generation error: {str(e)}")
