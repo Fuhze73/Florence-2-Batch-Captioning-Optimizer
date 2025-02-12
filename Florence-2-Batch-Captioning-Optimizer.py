@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 import traceback
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -99,7 +100,29 @@ class ImageLoader:
             return ImageProcessingResult(False, f"Error loading image: {str(e)}")
 
     @staticmethod
-    def list_images(directory: str) -> Tuple[Optional[pd.DataFrame], Optional[str], str]:
+    def load_caption_if_exists(image_path: Path) -> str:
+        """Load caption from a corresponding .txt file if it exists."""
+        
+        # Option 1: Check "test (13).jpg.txt"
+        caption_path_with_ext = Path(f"{image_path}.txt")
+        
+        # Option 2: Check "test (13).txt"
+        caption_path_without_ext = image_path.with_suffix(".txt")
+
+        # Try to load from either filename style
+        for caption_path in [caption_path_with_ext, caption_path_without_ext]:
+            if caption_path.exists():
+                try:
+                    with open(caption_path, "r", encoding="utf-8") as f:
+                        return f.read().strip()
+                except Exception as e:
+                    logger.error(f"Error loading caption for {image_path}: {str(e)}")
+
+        return ""
+
+
+    @staticmethod
+    def list_images(directory: str, load_captions: bool = False) -> Tuple[Optional[pd.DataFrame], Optional[str], str]:
         try:
             dir_path = Path(directory)
             if not dir_path.exists():
@@ -112,17 +135,25 @@ class ImageLoader:
             
             if not image_files:
                 return None, None, "⚠️ No valid image files found"
+            
+            captions = [""] * len(image_files)
+            if load_captions:
+                captions = [ImageLoader.load_caption_if_exists(f) for f in image_files]
                 
             df = pd.DataFrame({
                 "Process": [True] * len(image_files),
                 "Filename": [f.name for f in image_files],
-                "Caption": [""] * len(image_files),
+                "Caption": captions,
                 "Selected": [False] * len(image_files),
-                "Status": ["Pending"] * len(image_files)
+                "Status": ["Loaded" if cap else "Pending" for cap in captions]
             })
             
             paths = "\n".join(str(f.absolute()) for f in image_files)
-            return df, paths, f"✅ Found {len(image_files)} images"
+            loaded_count = sum(1 for cap in captions if cap)
+            msg = f"✅ Found {len(image_files)} images"
+            if load_captions and loaded_count > 0:
+                msg += f" and loaded {loaded_count} existing captions"
+            return df, paths, msg
             
         except Exception as e:
             logger.error(f"Error listing images: {traceback.format_exc()}")
@@ -132,17 +163,22 @@ class CaptionGenerator:
     """Handles caption generation with batching and error handling"""
     
     @staticmethod
+
+
+
     def generate_captions_batch(
         images: List[Image.Image],
         config: CaptionConfig,
         batch_size: int = 4
     ) -> List[str]:
+        """Generates captions for a batch of images using multi-threading for performance optimization."""
+        
         model, processor = ModelManager.get_model_and_processor(config.model_name)
         device = next(model.parameters()).device
         captions = []
-        
-        for i in range(0, len(images), batch_size):
-            batch = images[i:i + batch_size]
+
+        def process_batch(batch):
+            """Processes a single batch and returns captions."""
             try:
                 with torch.no_grad():
                     inputs = processor(
@@ -150,29 +186,42 @@ class CaptionGenerator:
                         images=batch,
                         return_tensors="pt"
                     ).to(device)
-                    
+
                     generated_ids = model.generate(
                         input_ids=inputs["input_ids"],
                         pixel_values=inputs["pixel_values"],
                         max_new_tokens=config.max_tokens,
                         do_sample=config.do_sample,
-                        num_beams=config.num_beams
+                        num_beams=config.num_beams,
+                        early_stopping=True if config.num_beams > 1 else False  # Adjust early stopping dynamically
                     )
-                    
+
                     batch_captions = processor.batch_decode(
                         generated_ids,
                         skip_special_tokens=True
                     )
-                    
+
                     # Add prefix if specified
-                    batch_captions = [f"{config.prefix}{caption}" for caption in batch_captions]
-                    captions.extend(batch_captions)
-                    
+                    return [f"{config.prefix}{caption}" for caption in batch_captions]
+
             except Exception as e:
                 logger.error(f"Error generating captions for batch: {str(e)}")
-                captions.extend(["Error: Failed to generate caption"] * len(batch))
-                
+                return ["Error: Failed to generate caption"] * len(batch)
+
+        # Splitting images into batches
+        batches = [images[i:i + batch_size] for i in range(0, len(images), batch_size)]
+
+        # Using ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            results = executor.map(process_batch, batches)
+
+        # Flatten results
+        for batch_captions in results:
+            captions.extend(batch_captions)
+
         return captions
+
+
 
 class BatchCaptioningUI:
     """Handles the Gradio interface and UI interactions"""
@@ -187,6 +236,10 @@ class BatchCaptioningUI:
             with gr.Row():
                 with gr.Column(scale=1):
                     input_directory = gr.Textbox(label="📂 Input directory")
+                    load_captions = gr.Checkbox(
+                        label="📝 Load Images and captions (if already generated)",
+                        value=False
+                    )
                     list_btn = gr.Button("📋 Load Images", variant="primary")
                     
                     # Model selection
@@ -289,12 +342,14 @@ class BatchCaptioningUI:
                     return df, image_paths, "❌ No valid images to process."
 
                 try:
+   
                     captions = CaptionGenerator.generate_captions_batch(images, config)
                     
+       
                     for valid_idx, caption in zip(valid_indices, captions):
                         df.at[valid_idx, "Caption"] = caption
                         df.at[valid_idx, "Status"] = "✅ Success"
-                        df.at[valid_idx, "Selected"] = False
+                        df.at[valid_idx, "Selected"] = true
                         
                 except Exception as e:
                     logger.error(f"Caption generation error: {str(e)}")
@@ -305,7 +360,7 @@ class BatchCaptioningUI:
             # Wire up all event handlers
             list_btn.click(
                 fn=ImageLoader.list_images,
-                inputs=[input_directory],
+                inputs=[input_directory, load_captions],
                 outputs=[files_df, hidden_paths, status_text]
             )
 
@@ -345,8 +400,10 @@ class BatchCaptioningUI:
             )
 
             def toggle_selection(df, select_all):
+                """Toggle selection for all items in the DataFrame and force update."""
                 if df is not None:
-                    df["Selected"] = select_all
+                    df["Selected"] = select_all  # Mise à jour interne
+                    df = df.copy()  # ✅ Force le rafraîchissement
                 return df
 
             select_all_btn.click(
@@ -360,6 +417,7 @@ class BatchCaptioningUI:
                 inputs=[files_df],
                 outputs=[files_df]
             )
+
             
         return demo
 
@@ -373,10 +431,12 @@ class BatchCaptioningUI:
         .status-error { color: #e74c3c; }
         """
 
+
 def main():
     ui = BatchCaptioningUI()
     demo = ui.create_interface()
     demo.launch()
+
 
 if __name__ == "__main__":
     main()
