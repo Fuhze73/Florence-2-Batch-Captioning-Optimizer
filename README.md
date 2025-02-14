@@ -37,23 +37,23 @@ python Florence-2-Batch-Captioning-Optimizer.py
 
 ## 🛠 Usage
 
-#1️⃣ Launch the interface
+###1️⃣ Launch the interface
 
 python Florence-2-Batch-Captioning-Optimizer.py
 
 
-#2️⃣ Load an image folder
+###2️⃣ Load an image folder
 
     Click "Load Images" and select a directory containing images.
 
 
-#3️⃣ Modify or generate captions
+###3️⃣ Modify or generate captions
 
     Select an image from the list.
     Edit or add a caption.
     Click "Update and Save Caption" to save changes.
 
 
-#4️⃣ Export captions
+###4️⃣ Export captions
 
 
