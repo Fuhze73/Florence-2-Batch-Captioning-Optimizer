@@ -23,12 +23,8 @@ Install Git, Python, Git Clone the forge repo `https://github.com/Fuhze73/Floren
 ## Install dependencies
 
 
-
 pip install -r requirements.txt
 
-
-
-python Florence-2-Batch-Captioning-Optimizer.py
 
 ## 🛠 Usage
 
