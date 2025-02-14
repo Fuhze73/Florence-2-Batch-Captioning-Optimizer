@@ -34,10 +34,10 @@ Click "Load Images" and select a directory containing images.
 
 ### Modify or generate captions
 
-Select an image from the list.
-Edit or add a caption.
-Click "Update and Save Caption" to save changes.
-You can edit your past captions without having to generate them each time (just click "Load Images with captions (if already generated) ")
+- Select an image from the list.
+- Edit or add a caption.
+- Click "Update and Save Caption" to save changes.
+- You can edit your past captions without having to generate them each time (just click "Load Images with captions (if already generated) ")
 
 ### Export captions
 
