@@ -216,36 +216,56 @@ class BatchCaptioningUI:
             gr.Markdown("## 🚀 Florence-2 Batch Captioning Optimizer")
 
             # --- Fonctions pour l'éditeur de Caption ---
-            def update_caption_selector(data):
-                """Met à jour la liste des captions à éditer avec un tri logique."""
-                new_choices = []
+            def update_caption_selector(data, current_selection=None):
+                """
+                Met à jour la liste des choix (choices) dans le Dropdown `caption_selector`
+                en effectuant un tri naturel sur les noms de fichiers. Conserve la sélection
+                courante si elle est encore présente dans la nouvelle liste, sinon sélectionne
+                le premier élément de la liste.
                 
+                :param data: Les données du DataFrame (ou dict/list) retournées par Gradio.
+                :param current_selection: La valeur actuellement sélectionnée dans le Dropdown (peut être None).
+                :return: Un gr.update(...) contenant 'choices' et 'value' à mettre à jour dans le Dropdown.
+                """
+                # Liste finale des nouveaux choix
+                new_choices = []
+
+                # Gestion du cas data=None
                 if data is None:
                     return gr.update(choices=[], value="")
 
-                elif isinstance(data, dict) and "data" in data:
+                # Selon le type de data, on extrait la colonne "Filename"
+                if isinstance(data, dict) and "data" in data:
+                    # data["data"] est généralement une liste de listes
                     rows = data["data"]
                     headers = data.get("headers", [])
                     idx = headers.index("Filename") if "Filename" in headers else 1
                     new_choices = [str(row[idx]) for row in rows if len(row) > idx]
 
                 elif isinstance(data, pd.DataFrame):
+                    # DataFrame direct
                     new_choices = list(data["Filename"])
 
                 elif isinstance(data, list):
+                    # data est déjà une liste de listes ou de dict
                     if len(data) > 0 and isinstance(data[0], list):
+                        # ex: [[True, "fichier1.jpg", "Caption1", ...], [True, "fichier2.jpg", ...], ...]
                         new_choices = [str(row[1]) for row in data if len(row) > 1]
                     elif len(data) > 0 and isinstance(data[0], dict):
+                        # ex: [{"Filename": "fichier1.jpg", "Caption": "..."}, ...]
                         new_choices = [str(row.get("Filename", "")) for row in data]
 
-                #  On applique le tri naturel ici
+                # Tri naturel (ex: file2, file10, file11, etc.)
                 new_choices = sorted(new_choices, key=natural_sort_key)
 
-                # Gérer le cas où la liste est vide
-                default_value = new_choices[0] if new_choices else ""
+                # Détermine la valeur sélectionnée par défaut
+                if not current_selection or current_selection not in new_choices:
+                    # On prend le premier élément si la sélection courante est None ou plus valide
+                    default_value = new_choices[0] if new_choices else ""
+                else:
+                    default_value = current_selection
 
                 return gr.update(choices=new_choices, value=default_value)
-
 
 
             def load_caption_for_edit(df, selected_filename):
@@ -271,7 +291,7 @@ class BatchCaptioningUI:
                     paths_list = image_paths.strip().split("\n")
                     base_path = None
 
-                    # 🔍 Trouver le chemin complet de l'image sélectionnée
+                    # Trouver le chemin complet de l'image sélectionnée
                     for path in paths_list:
                         if selected_filename in path:
                             base_path = Path(path)
@@ -280,7 +300,7 @@ class BatchCaptioningUI:
                     if not base_path:
                         return df, "⚠️ File not found."
 
-                    # ✅ Recherche rapide de l'index du fichier dans le DataFrame (Optimisation Solution 2)
+                    #  Recherche rapide de l'index du fichier dans le DataFrame (Optimisation Solution 2)
                     idx_list = df.index[df["Filename"] == selected_filename].tolist()
                     if not idx_list:
                         return df, "⚠️ Image not found in the list."
@@ -291,7 +311,7 @@ class BatchCaptioningUI:
                     if df.at[idx, "Caption"] == new_caption.strip():
                         return df, "⚠️ No changes detected."
 
-                    # ✅ Mise à jour du DataFrame
+                    #  Mise à jour du DataFrame
                     df.at[idx, "Caption"] = new_caption.strip()
                     df.at[idx, "Selected"] = True
                     df.at[idx, "Status"] = "✅ Edited"
@@ -300,7 +320,7 @@ class BatchCaptioningUI:
                     # 🔹 Sauvegarde automatique du caption dans son fichier .txt
                     txt_path1 = base_path.with_suffix(".txt")  # ex: "image.png" → "image.txt"
                     txt_path2 = Path(f"{base_path}.txt")       # ex: "image.png" → "image.png.txt"
-                    caption_path = txt_path1 if txt_path1.is_file() else txt_path2
+                    caption_path = txt_path1 if txt_path1.exists() else txt_path2 if txt_path2.exists() else txt_path1
 
                     with open(caption_path, "w", encoding="utf-8") as f:
                         f.write(new_caption.strip())
@@ -403,7 +423,7 @@ class BatchCaptioningUI:
                         outputs=[files_df, hidden_paths, status_text]
                     ).then(
                         fn=update_caption_selector,
-                        inputs=files_df,
+                        inputs=[files_df, caption_selector],
                         outputs=caption_selector
                     )
                     
@@ -414,7 +434,7 @@ class BatchCaptioningUI:
                         outputs=[files_df, hidden_paths, status_text]
                     ).then(  # Ajoutez cette partie .then()
                         fn=update_caption_selector,
-                        inputs=files_df,
+                        inputs=[files_df, caption_selector],
                         outputs=caption_selector
                     )
                     
@@ -454,9 +474,10 @@ class BatchCaptioningUI:
                     
                     files_df.change(
                         fn=update_caption_selector,
-                        inputs=files_df,
+                        inputs=[files_df, caption_selector],
                         outputs=caption_selector
                     )
+
                     
                     caption_selector.change(
                         fn=load_caption_for_edit,
@@ -476,7 +497,7 @@ class BatchCaptioningUI:
                         outputs=[files_df, status_text]
                     ).then(
                         fn=update_caption_selector,
-                        inputs=files_df,
+                        inputs=[files_df, caption_selector],  # On passe aussi la sélection courante
                         outputs=caption_selector
                     )
                     
