@@ -138,7 +138,7 @@ class ImageLoader:
 
             image_files = sorted(
                 [f for f in dir_path.iterdir() if f.suffix.lower() in ImageLoader.VALID_EXTENSIONS],
-                key=lambda f: natural_sort_key(f.name)  # ✅ On applique le tri naturel ici
+                key=lambda f: natural_sort_key(f.name)  # On applique le tri naturel ici
             )
 
             if not image_files:
@@ -217,17 +217,7 @@ class BatchCaptioningUI:
 
             # --- Fonctions pour l'éditeur de Caption ---
             def update_caption_selector(data, current_selection=None):
-                """
-                Met à jour la liste des choix (choices) dans le Dropdown `caption_selector`
-                en effectuant un tri naturel sur les noms de fichiers. Conserve la sélection
-                courante si elle est encore présente dans la nouvelle liste, sinon sélectionne
-                le premier élément de la liste.
-                
-                :param data: Les données du DataFrame (ou dict/list) retournées par Gradio.
-                :param current_selection: La valeur actuellement sélectionnée dans le Dropdown (peut être None).
-                :return: Un gr.update(...) contenant 'choices' et 'value' à mettre à jour dans le Dropdown.
-                """
-                # Liste finale des nouveaux choix
+
                 new_choices = []
 
                 # Gestion du cas data=None
@@ -291,6 +281,118 @@ class BatchCaptioningUI:
                     paths_list = image_paths.strip().split("\n")
                     base_path = None
 
+                    # Trouver le chemin complet
+                    for path in paths_list:
+                        if selected_filename in path:
+                            base_path = Path(path)
+                            break
+
+                    if not base_path:
+                        return df, "⚠️ File not found."
+
+                    # On trouve l’index de la ligne correspondante dans le DataFrame
+                    idx_list = df.index[df["Filename"] == selected_filename].tolist()
+                    if not idx_list:
+                        return df, "⚠️ Image not found in the list."
+
+                    idx = idx_list[0]
+
+                    # Vérifier si la légende n'a pas déjà cette valeur
+                    if df.at[idx, "Caption"] == new_caption.strip():
+                        return df, "⚠️ No changes detected."
+
+                    # Mise à jour du DataFrame
+                    df.at[idx, "Caption"] = new_caption.strip()
+                    df.at[idx, "Selected"] = True
+                    df.at[idx, "Status"] = "✅ Edited"
+                    df = df.copy()  # Force le rafraîchissement de Gradio
+
+                    # Sauvegarde automatique du caption
+                    txt_path1 = base_path.with_suffix(".txt")
+                    txt_path2 = Path(f"{base_path}.txt")
+                    # On choisit un des deux chemins
+                    caption_path = txt_path1 if txt_path1.exists() else txt_path2 if txt_path2.exists() else txt_path1
+
+                    with open(caption_path, "w", encoding="utf-8") as f:
+                        f.write(new_caption.strip())
+
+                    return df, f"✅ Saved caption for {selected_filename}."
+
+                except Exception as e:
+                    logger.error(f"❌ Error when editing and saving caption: {str(e)}")
+                    return df, f"❌ Error : {str(e)}"
+
+
+
+
+
+            def search_and_replace_in_captions(df, search_text, replace_text, match_case, whole_word):
+                """
+                Replaces all occurrences of `search_text` with `replace_text`
+                in captions, with options for case and whole word replacement.
+                Displays a warning if no changes have been made.
+                """
+                if df is None or df.empty:
+                    return df, "⚠️ No captions available for search and replace."
+
+                if not search_text.strip():
+                    return df, "⚠️ Please enter a search term."
+
+                if not replace_text.strip():
+                    return df, "⚠️ Replacement text cannot be empty."
+
+                df = df.copy()  # Force Gradio à rafraîchir l'affichage
+
+                # Construction de l'expression régulière en fonction des options cochées
+                pattern = r'\b' + re.escape(search_text) + r'\b' if whole_word else re.escape(search_text)
+                flags = 0 if match_case else re.IGNORECASE
+
+                changes_made = 0  # Compteur de modifications
+
+                for idx in df.index:
+                    caption = df.at[idx, "Caption"]
+                    new_caption, count = re.subn(pattern, replace_text, caption, flags=flags)  # Utilisation de re.subn pour compter les remplacements
+                    
+                    if count > 0:  # Si au moins un remplacement est fait
+                        df.at[idx, "Caption"] = new_caption
+                        changes_made += count
+
+                # Génération du message de statut
+                if changes_made == 0:
+                    message = f"⚠️ No occurrences of '{search_text}' found in captions."
+                    if whole_word:
+                        message += " Try disabling 'Whole Word Only'."
+                    if not match_case:
+                        message += " Try enabling 'Match Case'."
+                else:
+                    message = f"✅ Replaced {changes_made} occurrences of '{search_text}' with '{replace_text}'."
+
+                return df, message
+
+
+
+            def apply_prefix_to_captions(df, prefix):
+                """
+                Applique un préfixe à toutes les captions déjà chargées sans nécessiter
+                de régénération avec Florence-2.
+                """
+                if df is None or df.empty:
+                    return df, "⚠️ No captions loaded to apply the prefix."
+
+                df = df.copy()  # Force Gradio à rafraîchir l'affichage
+
+                for idx in df.index:
+                    if df.at[idx, "Caption"]:  # Vérifie si un caption existe déjà
+                        df.at[idx, "Caption"] = f"{prefix}{df.at[idx, 'Caption']}"
+
+                return df, "✅ Prefix applied to loaded captions."
+
+
+
+                try:
+                    paths_list = image_paths.strip().split("\n")
+                    base_path = None
+
                     # Trouver le chemin complet de l'image sélectionnée
                     for path in paths_list:
                         if selected_filename in path:
@@ -317,7 +419,7 @@ class BatchCaptioningUI:
                     df.at[idx, "Status"] = "✅ Edited"
                     df = df.copy()  #  Force Gradio à rafraîchir l'affichage immédiatement
 
-                    # 🔹 Sauvegarde automatique du caption dans son fichier .txt
+                    #  Sauvegarde automatique du caption dans son fichier .txt
                     txt_path1 = base_path.with_suffix(".txt")  # ex: "image.png" → "image.txt"
                     txt_path2 = Path(f"{base_path}.txt")       # ex: "image.png" → "image.png.txt"
                     caption_path = txt_path1 if txt_path1.exists() else txt_path2 if txt_path2.exists() else txt_path1
@@ -331,6 +433,58 @@ class BatchCaptioningUI:
                     logger.error(f"❌ Error when editing and saving caption: {str(e)}")
                     return df, f"❌ Error : {str(e)}"
 
+
+            def delete_caption_files(df, directory):
+              
+                if df is None or df.empty:
+                    return df, "⚠️ No captions available to delete."
+
+                if not os.path.exists(directory):
+                    return df, f"⚠️ The directory '{directory}' does not exist."
+
+                deleted_count = 0
+                not_found_count = 0
+
+                for idx in df.index:
+                    filename = df.at[idx, "Filename"]
+                    base_name, _ = os.path.splitext(filename)  # Supprime l'extension (.jpg, .png, etc.)
+
+                    #  Vérifier plusieurs variantes du fichier .txt
+                    possible_txt_files = [
+                        os.path.join(directory, f"{base_name}.txt"),       # Variante classique : test.txt
+                        os.path.join(directory, f"{filename}.txt"),        # Variante avec extension complète : test.jpg.txt
+                    ]
+
+                    #  Ajout d'une vérification pour les fichiers avec parenthèses
+                    parenthesis_match = re.match(r"^(.*)\s\(\d+\)$", base_name)
+                    if parenthesis_match:
+                        base_without_parentheses = parenthesis_match.group(1)
+                        possible_txt_files.append(os.path.join(directory, f"{base_without_parentheses}.txt"))
+
+                    #  Tentative de suppression des fichiers trouvés
+                    file_deleted = False
+                    for txt_path in possible_txt_files:
+                        if os.path.exists(txt_path):
+                            try:
+                                os.remove(txt_path)
+                                deleted_count += 1
+                                file_deleted = True
+                                break  # Sortir après suppression
+                            except Exception as e:
+                                return df, f"❌ Error deleting {txt_path}: {str(e)}"
+
+                    if not file_deleted:
+                        not_found_count += 1
+
+                #  Message de statut après suppression
+                if deleted_count == 0 and not_found_count > 0:
+                    message = f"⚠️ No caption files found for deletion. Check if filenames contain special characters."
+                else:
+                    message = f"✅ Deleted {deleted_count} caption files."
+                    if not_found_count > 0:
+                        message += f" ⚠️ {not_found_count} files were missing."
+
+                return df, message
 
 
             # --- Fonction de génération des captions ---
@@ -384,10 +538,23 @@ class BatchCaptioningUI:
                     model_selector = gr.Dropdown(choices=list(ModelManager.MODELS.keys()), label="🧠 Model", value="Florence-2 Large")
                     caption_type = gr.Dropdown(choices=list(ModelManager.CAPTION_TYPES.keys()), label="✍️ Caption Type", value="More Detailed Caption")
                     prefix_input = gr.Textbox(label="🔤 Caption prefix (optional)")
+                    apply_prefix_btn = gr.Button("Apply Prefix", variant="secondary")
+
+
+                    with gr.Accordion("Tokens editor", open=False):
+                        search_input = gr.Textbox(label="🔍 Search token", placeholder="Enter token to search...")
+                        replace_input = gr.Textbox(label="✏️ Replace with", placeholder="Enter replacement token...")
+                        match_case = gr.Checkbox(label="🔤 Match case", value=False)
+                        whole_word = gr.Checkbox(label="🔍 Whole word only", value=False)
+                        replace_btn = gr.Button("🔄 Search & Replace token")
+                    
                     with gr.Accordion("Advanced Options", open=False):
                         max_tokens = gr.Slider(minimum=64, maximum=512, value=256, step=32, label="Max Tokens")
                         num_beams = gr.Slider(minimum=1, maximum=5, value=1, step=1, label="Beam Search Size")
                         do_sample = gr.Checkbox(label="Use Sampling", value=True)
+
+                    delete_captions_btn = gr.Button("🗑️ Delete Captions Files", variant="secondary")
+
                 with gr.Column(scale=2):
                     with gr.Row():
                         select_all_btn = gr.Button("✅ Select All")
@@ -399,16 +566,30 @@ class BatchCaptioningUI:
                         interactive={"Process": True, "Caption": True, "Selected": True},
                         label="📝 Files & Captions",
                         height=500,
-                        wrap=True
+                        wrap=True                       
                     )
-                    hidden_paths = gr.Textbox(visible=False)
                     status_text = gr.Textbox(label="📜 Status", interactive=False)
+
+                    apply_prefix_btn.click(
+                        fn=apply_prefix_to_captions,
+                        inputs=[files_df, prefix_input],  
+                        outputs=[files_df, status_text]
+                    )
+
+                    delete_captions_btn.click(
+                        fn=delete_caption_files,
+                        inputs=[files_df, input_directory],  # On passe le DataFrame et le dossier source
+                        outputs=[files_df, status_text]  # Mise à jour du tableau et affichage du statut
+                    )
+
+                    hidden_paths = gr.Textbox(visible=False)
                     
-                    with gr.Accordion("Caption editor", open=True):
+                    with gr.Accordion("Caption editor", open=False):
                         caption_selector = gr.Dropdown(label="Select an image file to edit", choices=[], interactive=True, allow_custom_value=True)
                         caption_editor = gr.Textbox(label="Caption editor", lines=4, placeholder="Modify caption here...", interactive=True)
                         preview_caption = gr.Markdown(label="Preview Caption")
                         update_caption_btn = gr.Button("Update and save Caption", variant="primary")
+
                     
                     with gr.Row():
                         generate_btn = gr.Button("🚀 Generate Captions", variant="primary")
@@ -433,6 +614,11 @@ class BatchCaptioningUI:
                         fn=update_caption_selector,
                         inputs=[files_df, caption_selector],
                         outputs=caption_selector
+                    )
+                    replace_btn.click(
+                        fn=search_and_replace_in_captions,
+                        inputs=[files_df, search_input, replace_input, match_case, whole_word],
+                        outputs=[files_df, status_text]
                     )
                     
                     def save_captions(df, image_paths):
