@@ -131,7 +131,12 @@ class ImageLoader:
 
     @staticmethod
     def list_images(directory: str, load_captions: bool = False) -> Tuple[Optional[pd.DataFrame], Optional[str], str]:
+
         try:
+
+            if not directory.strip():
+                return None, None, "❌ No directory specified (empty input)"
+            
             dir_path = Path(directory)
             if not dir_path.exists():
                 return None, None, "❌ Directory does not exist"
@@ -323,9 +328,6 @@ class BatchCaptioningUI:
                     return df, f"❌ Error : {str(e)}"
 
 
-
-
-
             def search_and_replace_in_captions(df, search_text, replace_text, match_case, whole_word):
                 """
                 Replaces all occurrences of `search_text` with `replace_text`
@@ -370,7 +372,6 @@ class BatchCaptioningUI:
                 return df, message
 
 
-
             def apply_prefix_to_captions(df, prefix):
                 """
                 Applique un préfixe à toutes les captions déjà chargées sans nécessiter
@@ -386,52 +387,6 @@ class BatchCaptioningUI:
                         df.at[idx, "Caption"] = f"{prefix}{df.at[idx, 'Caption']}"
 
                 return df, "✅ Prefix applied to loaded captions."
-
-
-
-                try:
-                    paths_list = image_paths.strip().split("\n")
-                    base_path = None
-
-                    # Trouver le chemin complet de l'image sélectionnée
-                    for path in paths_list:
-                        if selected_filename in path:
-                            base_path = Path(path)
-                            break
-                    
-                    if not base_path:
-                        return df, "⚠️ File not found."
-
-                    #  Recherche rapide de l'index du fichier dans le DataFrame (Optimisation Solution 2)
-                    idx_list = df.index[df["Filename"] == selected_filename].tolist()
-                    if not idx_list:
-                        return df, "⚠️ Image not found in the list."
-
-                    idx = idx_list[0]  # Prend le premier index trouvé
-
-                    # Vérifier si le caption a déjà cette valeur (évite réécriture inutile)
-                    if df.at[idx, "Caption"] == new_caption.strip():
-                        return df, "⚠️ No changes detected."
-
-                    #  Mise à jour du DataFrame
-                    df.at[idx, "Caption"] = new_caption.strip()
-                    df.at[idx, "Selected"] = True
-                    df.at[idx, "Status"] = "✅ Edited"
-                    df = df.copy()  #  Force Gradio à rafraîchir l'affichage immédiatement
-
-                    #  Sauvegarde automatique du caption dans son fichier .txt
-                    txt_path1 = base_path.with_suffix(".txt")  # ex: "image.png" → "image.txt"
-                    txt_path2 = Path(f"{base_path}.txt")       # ex: "image.png" → "image.png.txt"
-                    caption_path = txt_path1 if txt_path1.exists() else txt_path2 if txt_path2.exists() else txt_path1
-
-                    with open(caption_path, "w", encoding="utf-8") as f:
-                        f.write(new_caption.strip())
-
-                    return df, f"✅ Saved caption for {selected_filename}."
-
-                except Exception as e:
-                    logger.error(f"❌ Error when editing and saving caption: {str(e)}")
-                    return df, f"❌ Error : {str(e)}"
 
 
             def delete_caption_files(df, directory):
@@ -535,6 +490,8 @@ class BatchCaptioningUI:
                     input_directory = gr.Textbox(label="📂 Input directory")
                     load_captions = gr.Checkbox(label="📝 Load Images with captions (if already generated)", value=False)
                     list_btn = gr.Button("📋 Load Images", variant="primary")
+                    generate_btn = gr.Button("🚀 Generate Captions", variant="primary")
+                    save_btn = gr.Button("💾 Save Selected", variant="secondary")
                     model_selector = gr.Dropdown(choices=list(ModelManager.MODELS.keys()), label="🧠 Model", value="Florence-2 Large")
                     caption_type = gr.Dropdown(choices=list(ModelManager.CAPTION_TYPES.keys()), label="✍️ Caption Type", value="More Detailed Caption")
                     prefix_input = gr.Textbox(label="🔤 Caption prefix (optional)")
@@ -591,9 +548,7 @@ class BatchCaptioningUI:
                         update_caption_btn = gr.Button("Update and save Caption", variant="primary")
 
                     
-                    with gr.Row():
-                        generate_btn = gr.Button("🚀 Generate Captions", variant="primary")
-                        save_btn = gr.Button("💾 Save Selected", variant="secondary")
+
                     
                     generate_btn.click(
                         fn=batch_caption,
