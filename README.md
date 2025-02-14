@@ -47,7 +47,7 @@ python Florence-2-Batch-Captioning-Optimizer.py
     Click "Load Images" and select a directory containing images.
 
 
-###3️⃣ Modify or generate captions
+### 3️⃣ Modify or generate captions
 
     Select an image from the list.
     Edit or add a caption.
