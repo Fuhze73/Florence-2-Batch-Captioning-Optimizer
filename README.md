@@ -30,7 +30,7 @@ pip install -r requirements.txt
 
 ### Load an image folder
 
-Click "Load Images" and select a directory containing images.
+Put the folder containing your images and click on Load image before generating or editing the captions.
 
 ### Modify or generate captions
 
