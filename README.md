@@ -18,8 +18,7 @@ Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and 
 
 ### 1️⃣ Clone the repository
 
-git clone https://github.com/your-username/repository-name.git
-cd repository-name
+Install Git, Python, Git Clone the forge repo `https://github.com/Fuhze73/Florence-2-Batch-Captioning-Optimizer.git` and then run run.bat).
 
 
 python Florence-2-Batch-Captioning-Optimizer.py
@@ -28,6 +27,8 @@ This will open a web-based interface in your browser.
 
 
 ## Install dependencies
+
+
 
 pip install -r requirements.txt
 
