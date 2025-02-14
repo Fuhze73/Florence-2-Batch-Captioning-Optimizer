@@ -7,7 +7,6 @@ Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and 
 ## 📌 Key Features
 
 ✔ Load and manage image datasets  
-✔ You can edit your past captions without having to generate them each time (just click "Load Images with captions (if already generated) ")
 ✔ Generate detailed captions  
 ✔ Edit and update captions in real-time  
 ✔ Auto-save modifications  
@@ -37,6 +36,7 @@ Click "Load Images" and select a directory containing images.
 Select an image from the list.
 Edit or add a caption.
 Click "Update and Save Caption" to save changes.
+You can edit your past captions without having to generate them each time (just click "Load Images with captions (if already generated) ")
 
 ### Export captions
 
