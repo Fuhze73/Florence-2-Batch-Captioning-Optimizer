@@ -404,11 +404,8 @@ class BatchCaptioningUI:
                     hidden_paths = gr.Textbox(visible=False)
                     status_text = gr.Textbox(label="📜 Status", interactive=False)
                     
-                    # Définition du Dropdown en dehors du bloc d'Accordéon
-                    caption_selector = gr.Dropdown(label="Select an image file to edit", choices=[], interactive=True, allow_custom_value=True)
-                    
                     with gr.Accordion("Caption editor", open=True):
-                        # On peut ici ajouter d'autres composants liés à l'édition, sans redéfinir caption_selector
+                        caption_selector = gr.Dropdown(label="Select an image file to edit", choices=[], interactive=True, allow_custom_value=True)
                         caption_editor = gr.Textbox(label="Caption editor", lines=4, placeholder="Modify caption here...", interactive=True)
                         preview_caption = gr.Markdown(label="Preview Caption")
                         update_caption_btn = gr.Button("Update and save Caption", variant="primary")
