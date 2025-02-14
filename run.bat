@@ -8,7 +8,7 @@ echo Installing dependencies...
 pip install -r ../requirements.txt
 
 echo Starting Florence-2 Batch Captioning Optimizer...
-python "Florence-2-Batch-Captioning-Optimizer.py"
+python "F2BC-Optimizer.py"
 
 REM Optional: Keep the window open to view logs
 pause
