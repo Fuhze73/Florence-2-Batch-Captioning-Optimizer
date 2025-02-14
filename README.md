@@ -9,6 +9,7 @@ Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and 
 ✔ Load and manage image datasets  
 ✔ Generate detailed captions  
 ✔ Edit and update captions in real-time  
+✔ Edit each caption individually
 ✔ Auto-save modifications  
 ✔ Optimized interface  
 
