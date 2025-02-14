@@ -1,6 +1,6 @@
 Features
 
-    📂 Automatically loads images from a selected folder.
+    📂 Loads images from a selected folder.
     🤖 Batch caption generation using Florence-2.
     ✏️ Manual caption editing before saving.
     💾 Auto-saving captions in corresponding .txt files.
