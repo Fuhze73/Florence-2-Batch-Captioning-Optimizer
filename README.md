@@ -1,6 +1,6 @@
 # Florence-2 Batch Captioning Optimizer
 
-This script is based on the work of @DenOfEquity for his code in the ‘Spaces > Florence-2‘ part of [stable-diffusion-webui-forge](https://github.com/lllyasviel/stable-diffusion-webui-forge)
+This script is based on the work of [DenOfEquity](https://github.com/DenOfEquity) for his code in the [‘Spaces > Florence-2‘](https://github.com/lllyasviel/stable-diffusion-webui-forge/tree/main/extensions-builtin/forge_space_florence_2) part of [stable-diffusion-webui-forge](https://github.com/lllyasviel/stable-diffusion-webui-forge)
 
 Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and manage captions for an image dataset, primarily for training **LoRA models**.  
 
