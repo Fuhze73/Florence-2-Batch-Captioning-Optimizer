@@ -1,9 +1,5 @@
-torch
-transformers
-gradio
+gradio==4.40.0
 pandas
-pillow
-numpy
-autopep8
-pathlib
-typing-extensions
+Pillow
+torch>=1.12.1
+transformers
