@@ -17,7 +17,7 @@ Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and 
 ##  Installation
 
 ### 1️⃣ Clone the repository
-```sh
+
 git clone https://github.com/your-username/repository-name.git
 cd repository-name
 
