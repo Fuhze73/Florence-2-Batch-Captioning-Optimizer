@@ -1,46 +1,59 @@
-Features
+# Florence-2 Batch Captioning Optimizer
 
-    📂 Loads images from a selected folder.
-    🤖 Batch caption generation using Florence-2.
-    ✏️ Manual caption editing before saving.
-    💾 Auto-saving captions in corresponding .txt files.
-    🎯 Interactive file selection via a Gradio-based GUI.
+Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and manage captions for an image dataset, primarily for training **LoRA models**.  
 
-🛠 Installation & Execution
-1️⃣ Prerequisites
+---
 
-    Python 3.8+ installed on your system.
-    Pip (Python package manager).
+## 📌 Key Features
 
-2️⃣ Install dependencies
+✔ Load and manage image datasets  
+✔ Generate detailed captions  
+✔ Edit and update captions in real-time  
+✔ Auto-save modifications  
+✔ Optimized interface  
 
-Run the following command in your terminal (or CMD):
+---
+
+##  Installation
+
+### 1️⃣ Clone the repository
+```sh
+git clone https://github.com/your-username/repository-name.git
+cd repository-name
+
+
+python Florence-2-Batch-Captioning-Optimizer.py
+
+This will open a web-based interface in your browser.
+
+
+## Install dependencies
 
 pip install -r requirements.txt
 
-3️⃣ Run the application
 
-If using the provided .bat file, simply double-click run.bat.
-Otherwise, run manually in the terminal:
 
-cd webui
-python batch_caption.py
+python Florence-2-Batch-Captioning-Optimizer.py
 
-The interface will automatically open in your browser.
+## 🛠 Usage
 
-📷 How to Use
+#1️⃣ Launch the interface
 
-    Select the folder containing the images.
-    Start the automatic caption generation.
-    Edit captions if needed.
-    Save the captions as .txt files.
+python Florence-2-Batch-Captioning-Optimizer.py
 
-📢 Notes
 
-    This script runs locally and does not send any data to external servers.
-    A good GPU setup is recommended for faster inference.
-    Tested with Gradio 4.40.0 and Torch 1.12.1+.
+#2️⃣ Load an image folder
 
-📜 License
+    Click "Load Images" and select a directory containing images.
 
-This project is released under the MIT License. Feel free to use, modify, and distribute it. 🚀
+
+#3️⃣ Modify or generate captions
+
+    Select an image from the list.
+    Edit or add a caption.
+    Click "Update and Save Caption" to save changes.
+
+
+#4️⃣ Export captions
+
+
