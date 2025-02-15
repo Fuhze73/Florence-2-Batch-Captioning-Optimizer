@@ -13,6 +13,9 @@ import traceback
 import time
 from functools import lru_cache
 import re
+import io 
+import random
+from PIL import Image
 
 def natural_sort_key(s):
     """Trie les fichiers en respectant l'ordre des nombres."""
@@ -97,6 +100,8 @@ class ModelManager:
         return cls.CAPTION_TYPES.get(caption_type, "<CAPTION>")
 
 class ImageLoader:
+
+
     """Handles image loading and validation"""
     VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".avif"}
 
@@ -171,6 +176,29 @@ class ImageLoader:
             return None, None, f"❌ Error: {str(e)}"
 
 class CaptionGenerator:
+
+
+    @staticmethod
+    def get_thumbnails(df, hidden_paths, selected_filename):
+        if df is None or not hidden_paths:
+            return None, gr.update(value=selected_filename)
+
+        paths_list = hidden_paths.strip().split("\n")
+        images = []
+        for idx, row in df.iterrows():
+            img_path = paths_list[idx]
+            if os.path.exists(img_path):
+                with Image.open(img_path) as img:
+                    img_resized = img.resize((150, 150), Image.LANCZOS)
+                    images.append(img_resized.convert("RGB"))
+
+        # On prend la première image si dispo
+        first_image = images[0] if images else None
+        return first_image, gr.update(value=selected_filename)
+
+
+
+    
     """Handles caption generation with batching and error handling"""
     @staticmethod
     def generate_captions_batch(
@@ -215,6 +243,44 @@ class BatchCaptioningUI:
     """Handles the Gradio interface and UI interactions"""
     def __init__(self):
         self.model_manager = ModelManager()
+
+
+
+    @staticmethod
+    def update_gallery_selection(df, selected_filename, hidden_paths):
+        if df is None or not hidden_paths or not selected_filename:
+            return gr.update(value=None)  # Renvoie None si pas d'image
+
+        paths_list = hidden_paths.strip().split("\n")
+        try:
+            for idx, row in df.iterrows():
+                if row["Filename"] == selected_filename:
+                    img_path = paths_list[idx]
+                    if not os.path.exists(img_path):
+                        return gr.update(value=None)
+
+                    with Image.open(img_path) as raw_img:
+                        img_resized = raw_img.resize((150, 150), Image.LANCZOS)
+
+                        # Convertir en BytesIO si vous tenez à contourner le cache
+                        img_bytes = io.BytesIO()
+                        img_resized.save(img_bytes, format="PNG")
+                        img_bytes.seek(0)
+
+                        # On réouvre l'image en PIL
+                        single_img = Image.open(img_bytes).convert("RGB")
+
+                        # On renvoie UN SEUL objet PIL, pas de liste
+                        return gr.update(value=single_img)
+
+        except Exception as e:
+            logger.error(f"Error loading image {selected_filename}: {str(e)}")
+
+        # Si on n'a rien trouvé
+        return gr.update(value=None)
+
+
+
 
     def create_interface(self):
         with gr.Blocks(css=self._get_custom_css()) as demo:
@@ -525,7 +591,11 @@ class BatchCaptioningUI:
                         height=500,
                         wrap=True                       
                     )
+
+
                     status_text = gr.Textbox(label="📜 Status", interactive=False)
+
+
 
                     apply_prefix_btn.click(
                         fn=apply_prefix_to_captions,
@@ -542,12 +612,11 @@ class BatchCaptioningUI:
                     hidden_paths = gr.Textbox(visible=False)
                     
                     with gr.Accordion("Caption editor", open=False):
+                        preview = gr.Image(label="Preview", interactive=False, type="pil", height=200)
                         caption_selector = gr.Dropdown(label="Select an image file to edit", choices=[], interactive=True, allow_custom_value=True)
                         caption_editor = gr.Textbox(label="Caption editor", lines=4, placeholder="Modify caption here...", interactive=True)
                         preview_caption = gr.Markdown(label="Preview Caption")
                         update_caption_btn = gr.Button("Update and save Caption", variant="primary")
-
-                    
 
                     
                     generate_btn.click(
@@ -559,17 +628,23 @@ class BatchCaptioningUI:
                         inputs=[files_df, caption_selector],
                         outputs=caption_selector
                     )
-                    
-                    
+                        
+
                     list_btn.click(
                         fn=ImageLoader.list_images,
                         inputs=[input_directory, load_captions],
                         outputs=[files_df, hidden_paths, status_text]
-                    ).then(  # Ajoutez cette partie .then()
+                    ).then(
                         fn=update_caption_selector,
                         inputs=[files_df, caption_selector],
                         outputs=caption_selector
+                    ).then(
+                        fn=CaptionGenerator.get_thumbnails,  # 🔥 Correction : appel correct de la méthode
+                        inputs=[files_df, hidden_paths, caption_selector],  # 🔥 Ajout du fichier sélectionné
+                        outputs=[preview, caption_selector]
                     )
+
+
                     replace_btn.click(
                         fn=search_and_replace_in_captions,
                         inputs=[files_df, search_input, replace_input, match_case, whole_word],
@@ -616,13 +691,15 @@ class BatchCaptioningUI:
                         outputs=caption_selector
                     )
 
-                    
                     caption_selector.change(
-                        fn=load_caption_for_edit,
-                        inputs=[files_df, caption_selector],
-                        outputs=caption_editor
+                        fn=lambda df, selected_filename, hidden_paths: (
+                            load_caption_for_edit(df, selected_filename), 
+                            BatchCaptioningUI.update_gallery_selection(df, selected_filename, hidden_paths)
+                        ),
+                        inputs=[files_df, caption_selector, hidden_paths],
+                        outputs=[caption_editor, preview]
                     )
-                    
+                                        
                     caption_editor.change(
                         fn=update_preview,
                         inputs=caption_editor,
@@ -649,6 +726,9 @@ class BatchCaptioningUI:
         .status-pending { color: #f39c12; }
         .status-success { color: #27ae60; }
         .status-error { color: #e74c3c; }
+        .wrap .resizable-handle { display: none !important; }
+        .wrap textarea { resize: none !important; }
+    
         """
 
 def main():
