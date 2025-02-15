@@ -4,6 +4,8 @@ This script is based on the work of [DenOfEquity](https://github.com/DenOfEquity
 
 Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and manage captions for an image dataset, primarily for training **LoRA models**.  
 
+**My goal is to be able to have total control over your captions in a single application. Especially for the editing/supervision part**
+
 ![image](https://raw.githubusercontent.com/Fuhze73/Florence-2-Batch-Captioning-Optimizer/refs/heads/main/screen2.png)
 
 ---
