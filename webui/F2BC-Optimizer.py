@@ -656,7 +656,7 @@ class BatchCaptioningUI:
 
                     hidden_paths = gr.Textbox(visible=False)
                     
-                    with gr.Accordion("Caption editor", open=False):
+                    with gr.Accordion("Caption editor", open=True):
                         preview = gr.Image(label="Preview", interactive=False, type="pil", height=300)
 
                         next_btn = gr.Button("Next →")
