@@ -15,7 +15,6 @@ from functools import lru_cache
 import re
 import io 
 import random
-from PIL import Image
 
 def natural_sort_key(s):
     """Trie les fichiers en respectant l'ordre des nombres."""
@@ -189,7 +188,7 @@ class CaptionGenerator:
             img_path = paths_list[idx]
             if os.path.exists(img_path):
                 with Image.open(img_path) as img:
-                    img_resized = img.resize((150, 150), Image.LANCZOS)
+                    img_resized = img.resize((300, 300), Image.LANCZOS)
                     images.append(img_resized.convert("RGB"))
 
         # On prend la première image si dispo
@@ -204,6 +203,12 @@ class CaptionGenerator:
     def generate_captions_batch(
         images: List[Image.Image],
         config: CaptionConfig,
+        temperature: float,
+        top_k: int,
+        top_p: float,
+        repetition_penalty: float,
+        min_new_tokens: int,
+        early_stopping: bool,
         batch_size: int = 4
     ) -> List[str]:
         model, processor = ModelManager.get_model_and_processor(config.model_name)
@@ -224,7 +229,12 @@ class CaptionGenerator:
                         max_new_tokens=config.max_tokens,
                         do_sample=config.do_sample,
                         num_beams=config.num_beams,
-                        early_stopping=True if config.num_beams > 1 else False
+                        temperature=temperature if config.do_sample else None,
+                        top_k=top_k if config.do_sample else None,
+                        top_p=top_p if config.do_sample else None,
+                        repetition_penalty=repetition_penalty,
+                        min_new_tokens=min_new_tokens,
+                        early_stopping=early_stopping
                     )
                     batch_captions = processor.batch_decode(generated_ids, skip_special_tokens=True)
                     return [f"{config.prefix}{caption}" for caption in batch_captions]
@@ -260,7 +270,7 @@ class BatchCaptioningUI:
                         return gr.update(value=None)
 
                     with Image.open(img_path) as raw_img:
-                        img_resized = raw_img.resize((150, 150), Image.LANCZOS)
+                        img_resized = raw_img.resize((300, 300), Image.LANCZOS)
 
                         # Convertir en BytesIO si vous tenez à contourner le cache
                         img_bytes = io.BytesIO()
@@ -285,6 +295,8 @@ class BatchCaptioningUI:
     def create_interface(self):
         with gr.Blocks(css=self._get_custom_css()) as demo:
             gr.Markdown("## 🚀 Florence-2 Batch Captioning Optimizer")
+            hidden_paths = gr.Textbox(visible=False)
+            current_index_state = gr.State(value=0)  # index initial = 0
 
             # --- Fonctions pour l'éditeur de Caption ---
             def update_caption_selector(data, current_selection=None):
@@ -509,7 +521,7 @@ class BatchCaptioningUI:
 
 
             # --- Fonction de génération des captions ---
-            def batch_caption(directory, df, image_paths, model_name, caption_type, prefix, max_tokens, num_beams, do_sample):
+            def batch_caption(directory, df, image_paths, model_name, caption_type, prefix, max_tokens, num_beams, do_sample, temperature, top_k, top_p, repetition_penalty, min_new_tokens, early_stopping):
                 if df is None or image_paths is None:
                     return df, None, "⚠️ No files to process."
                 paths_list = image_paths.strip().split("\n")
@@ -540,7 +552,16 @@ class BatchCaptioningUI:
                 if not images:
                     return df, image_paths, "❌ No valid images to process."
                 try:
-                    captions = CaptionGenerator.generate_captions_batch(images, config)
+                    captions = CaptionGenerator.generate_captions_batch(
+                        images, 
+                        config, 
+                        temperature, 
+                        top_k, 
+                        top_p, 
+                        repetition_penalty, 
+                        min_new_tokens, 
+                        early_stopping
+                    )
                     for valid_idx, caption in zip(valid_indices, captions):
                         df.at[valid_idx, "Caption"] = caption
                         df.at[valid_idx, "Status"] = "✅ Success"
@@ -550,6 +571,23 @@ class BatchCaptioningUI:
                     return df, image_paths, f"❌ Error during caption generation: {str(e)}"
                 return df, image_paths, f"✅ Generated {len(captions)} captions successfully"
 
+
+            def go_previous(df, current_index, hidden_paths):
+                if df is None or df.empty:
+                    return gr.update(), current_index
+                rows = df["Filename"].tolist()
+                new_index = max(0, current_index - 1)
+                return rows[new_index], new_index
+
+            def go_next(df, current_index, hidden_paths):
+                if df is None or df.empty:
+                    return gr.update(), current_index
+                rows = df["Filename"].tolist()
+                last_index = len(rows) - 1
+                new_index = min(last_index, current_index + 1)
+                return rows[new_index], new_index
+
+
             # --- Début de l'interface ---
             with gr.Row():
                 with gr.Column(scale=1):
@@ -558,8 +596,9 @@ class BatchCaptioningUI:
                     list_btn = gr.Button("📋 Load Images", variant="primary")
                     generate_btn = gr.Button("🚀 Generate Captions", variant="primary")
                     save_btn = gr.Button("💾 Save Selected", variant="secondary")
-                    model_selector = gr.Dropdown(choices=list(ModelManager.MODELS.keys()), label="🧠 Model", value="Florence-2 Large")
-                    caption_type = gr.Dropdown(choices=list(ModelManager.CAPTION_TYPES.keys()), label="✍️ Caption Type", value="More Detailed Caption")
+                    delete_captions_btn = gr.Button("🗑️ Delete Captions Files", variant="secondary")
+                    model_selector = gr.Dropdown(choices=list(ModelManager.MODELS.keys()), label="🧠 Model", value="Florence-2 Base")
+                    caption_type = gr.Dropdown(choices=list(ModelManager.CAPTION_TYPES.keys()), label="✍️ Caption Type", value="Caption")
                     prefix_input = gr.Textbox(label="🔤 Caption prefix (optional)")
                     apply_prefix_btn = gr.Button("Apply Prefix", variant="secondary")
 
@@ -572,11 +611,17 @@ class BatchCaptioningUI:
                         replace_btn = gr.Button("🔄 Search & Replace token")
                     
                     with gr.Accordion("Advanced Options", open=False):
-                        max_tokens = gr.Slider(minimum=64, maximum=512, value=256, step=32, label="Max Tokens")
-                        num_beams = gr.Slider(minimum=1, maximum=5, value=1, step=1, label="Beam Search Size")
+                        max_tokens = gr.Slider(minimum=64, maximum=512, value=128, step=32, label="Max Tokens")
+                        num_beams = gr.Slider(minimum=1, maximum=5, value=2, step=1, label="Beam Search Size")
                         do_sample = gr.Checkbox(label="Use Sampling", value=True)
 
-                    delete_captions_btn = gr.Button("🗑️ Delete Captions Files", variant="secondary")
+                        temperature = gr.Slider(minimum=0.0, maximum=2.0, value=1.0, step=0.1, label="Temperature (creativity)", interactive=True)
+                        top_k = gr.Slider(minimum=0, maximum=100, value=50, step=1, label="Top-k (token sampling limit)")
+                        top_p = gr.Slider(minimum=0.0, maximum=1.0, value=1.0, step=0.05, label="Top-p (nucleus sampling)")
+                        repetition_penalty = gr.Slider(minimum=1.0, maximum=3.0, value=1.0, step=0.1, label="Repetition Penalty (discourage repeats)")
+                        min_new_tokens = gr.Slider(minimum=0, maximum=50, value=0, step=5, label="Min New Tokens")
+                        early_stopping = gr.Checkbox(label="Early Stopping", value=False)
+
 
                 with gr.Column(scale=2):
                     with gr.Row():
@@ -612,16 +657,22 @@ class BatchCaptioningUI:
                     hidden_paths = gr.Textbox(visible=False)
                     
                     with gr.Accordion("Caption editor", open=False):
-                        preview = gr.Image(label="Preview", interactive=False, type="pil", height=200)
+                        preview = gr.Image(label="Preview", interactive=False, type="pil", height=300)
+
+                        next_btn = gr.Button("Next →")
+                        prev_btn = gr.Button("← Previous") 
                         caption_selector = gr.Dropdown(label="Select an image file to edit", choices=[], interactive=True, allow_custom_value=True)
+                        update_caption_btn = gr.Button("Update and save Caption", variant="primary")
                         caption_editor = gr.Textbox(label="Caption editor", lines=4, placeholder="Modify caption here...", interactive=True)
                         preview_caption = gr.Markdown(label="Preview Caption")
-                        update_caption_btn = gr.Button("Update and save Caption", variant="primary")
+
+
+
 
                     
                     generate_btn.click(
                         fn=batch_caption,
-                        inputs=[input_directory, files_df, hidden_paths, model_selector, caption_type, prefix_input, max_tokens, num_beams, do_sample],
+                        inputs=[input_directory, files_df, hidden_paths, model_selector, caption_type, prefix_input, max_tokens, num_beams, do_sample, temperature, top_k, top_p, repetition_penalty, min_new_tokens, early_stopping],
                         outputs=[files_df, hidden_paths, status_text]
                     ).then(
                         fn=update_caption_selector,
@@ -714,6 +765,33 @@ class BatchCaptioningUI:
                         fn=update_caption_selector,
                         inputs=[files_df, caption_selector],  # On passe aussi la sélection courante
                         outputs=caption_selector
+                    )
+
+
+                    prev_btn.click(
+                        fn=go_previous,
+                        inputs=[files_df, current_index_state, hidden_paths],
+                        outputs=[caption_selector, current_index_state]
+                    ).then(
+                        fn=lambda df, sel, hp: (
+                            load_caption_for_edit(df, sel), 
+                            BatchCaptioningUI.update_gallery_selection(df, sel, hp)
+                        ),
+                        inputs=[files_df, caption_selector, hidden_paths],
+                        outputs=[caption_editor, preview]
+                    )
+
+                    next_btn.click(
+                        fn=go_next,
+                        inputs=[files_df, current_index_state, hidden_paths],
+                        outputs=[caption_selector, current_index_state]
+                    ).then(
+                        fn=lambda df, sel, hp: (
+                            load_caption_for_edit(df, sel), 
+                            BatchCaptioningUI.update_gallery_selection(df, sel, hp)
+                        ),
+                        inputs=[files_df, caption_selector, hidden_paths],
+                        outputs=[caption_editor, preview]
                     )
                     
             return demo
