@@ -587,6 +587,18 @@ class BatchCaptioningUI:
                 new_index = min(last_index, current_index + 1)
                 return rows[new_index], new_index
 
+            def select_image(df, selected_filename, hidden_paths, old_index):
+                # Trouve l'index correspondant dans le DataFrame
+                idx_list = df.index[df["Filename"] == selected_filename].tolist()
+                if not idx_list:
+                    return old_index, "", None  # On ne change rien si on ne trouve pas
+
+                new_index = idx_list[0]
+                # On charge la caption
+                new_caption = load_caption_for_edit(df, selected_filename)
+                new_preview = BatchCaptioningUI.update_gallery_selection(df, selected_filename, hidden_paths)
+                return new_index, new_caption, new_preview
+
 
             # --- Début de l'interface ---
             with gr.Row():
@@ -743,12 +755,9 @@ class BatchCaptioningUI:
                     )
 
                     caption_selector.change(
-                        fn=lambda df, selected_filename, hidden_paths: (
-                            load_caption_for_edit(df, selected_filename), 
-                            BatchCaptioningUI.update_gallery_selection(df, selected_filename, hidden_paths)
-                        ),
-                        inputs=[files_df, caption_selector, hidden_paths],
-                        outputs=[caption_editor, preview]
+                        fn=select_image,
+                        inputs=[files_df, caption_selector, hidden_paths, current_index_state],
+                        outputs=[current_index_state, caption_editor, preview]
                     )
                                         
                     caption_editor.change(
