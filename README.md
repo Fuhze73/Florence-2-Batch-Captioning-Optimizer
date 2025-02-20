@@ -8,6 +8,8 @@ Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and 
 
 ![image](https://raw.githubusercontent.com/Fuhze73/Florence-2-Batch-Captioning-Optimizer/refs/heads/main/screen.png)
 
+![image](https://raw.githubusercontent.com/Fuhze73/Florence-2-Batch-Captioning-Optimizer/refs/heads/main/screen2.png)
+
 ---
 
 # 📌 Key Features
