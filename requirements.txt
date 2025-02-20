@@ -3,3 +3,4 @@ pandas
 Pillow
 torch>=1.12.1
 transformers
+safetensors
