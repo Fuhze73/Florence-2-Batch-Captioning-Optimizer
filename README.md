@@ -20,6 +20,8 @@ Florence-2 Batch Captioning Optimizer is a tool designed to generate, edit, and 
 ✔ Search & replace tokens  
 ✔ Preview of captions with thumbnails  
 ✔ Optimized interface  
+✔ Advanced options for refining captions's generation  
+✔ Addition of a tab: ‘Lora Inspector’ (Useful if you need to watch captions from other LoRAs)
 
 ---
 
